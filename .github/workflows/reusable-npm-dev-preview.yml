@@ -37,6 +37,7 @@ jobs:
         with:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org/
+          scope: '@cherry-markdown'
           cache: yarn
 
       - name: Compute dev version
