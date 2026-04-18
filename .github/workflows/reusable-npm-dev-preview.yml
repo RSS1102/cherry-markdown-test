@@ -37,7 +37,6 @@ jobs:
         with:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org/
-          scope: '@cherry-markdown'
           cache: yarn
 
       - name: Compute dev version
@@ -87,6 +86,8 @@ jobs:
 
       - name: npm publish
         working-directory: ./packages/cherry-markdown
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --tag dev --provenance
 
       - name: Comment install instructions
