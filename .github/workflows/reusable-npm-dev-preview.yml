@@ -95,36 +95,38 @@ jobs:
         env:
           PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
           PACKAGE_VERSION: ${{ env.PACKAGE_VERSION }}
-          COMMIT_MESSAGE: ${{ env.COMMIT_MESSAGE }}
         with:
           script: |
             const name = process.env.PACKAGE_NAME;
             const version = process.env.PACKAGE_VERSION;
-            
+
+            const body = [
+              `📦 **cherry-markdown dev published** — \`${name}@${version}\``,
+              '',
+              '⚠️ **注意**: 此版本为开发预览版，禁止在生产环境使用！',
+              '> 通过 alias 安装后，代码中仍然可以使用 `cherry-markdown` 包名，无需修改 import 语句',
+              '',
+              `**[查看 NPM](https://www.npmjs.com/package/${name}/v/${version})**`,
+              '',
+              '```bash',
+              `pnpm add cherry-markdown@npm:${name}@${version}`,
+              '```',
+              '```bash',
+              `yarn add cherry-markdown@npm:${name}@${version}`,
+              '```',
+              '```bash',
+              `npm i cherry-markdown@npm:${name}@${version}`,
+              '```',
+              '',
+              '**peer dependency 覆盖方式：**',
+              `npm: \`"overrides": { "cherry-markdown": "npm:${name}@${version}" }\``,
+              `yarn: \`"resolutions": { "cherry-markdown": "npm:${name}@${version}" }\``,
+              `pnpm: \`"pnpm": { "overrides": { "cherry-markdown": "npm:${name}@${version}" } }\``,
+            ].join('\n');
+
             github.rest.issues.createComment({
               issue_number: ${{ inputs.pr_number }},
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `📦 **cherry-markdown dev published** — \`${name}@${version}\`
-
-⚠️ **注意**: 此版本为开发预览版，禁止在生产环境使用！
-> 通过 alias 安装后，代码中仍然可以使用 \`cherry-markdown\` 包名，无需修改 import 语句
-
-**[查看 NPM](https://www.npmjs.com/package/${name}/v/${version})**
-
-\`\`\`bash
-pnpm add cherry-markdown@npm:${name}@${version}
-\`\`\`
-\`\`\`bash
-yarn add cherry-markdown@npm:${name}@${version}
-\`\`\`
-\`\`\`bash
-npm i cherry-markdown@npm:${name}@${version}
-\`\`\`
-
-**peer dependency 覆盖方式：**
-npm: \`"overrides": { "cherry-markdown": "npm:${name}@${version}" }\`
-yarn: \`"resolutions": { "cherry-markdown": "npm:${name}@${version}" }\`
-pnpm: \`"pnpm": { "overrides": { "cherry-markdown": "npm:${name}@${version}" } }\`
-              `
+              body,
             });
