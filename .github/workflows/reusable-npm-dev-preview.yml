@@ -88,10 +88,6 @@ jobs:
 
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        env:
-          # 若 npm 已配置 Trusted Publisher（OIDC），可删除此行；
-          # 否则必须提供 NPM_TOKEN（Automation Token，勾选 bypass 2FA）
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --tag latest --provenance
 
       - name: Comment install instructions
