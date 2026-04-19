@@ -32,16 +32,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # OIDC Trusted Publishing 要求 npm >= 11.5.1，Node 24 内置 npm 11.x
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: .node-version
+          node-version: '24'
           registry-url: https://registry.npmjs.org/
-          cache: yarn
-
-      # Node 22 内置 npm 10.x，OIDC Trusted Publishing 要求 npm >= 11.5.1
-      - name: Upgrade npm for OIDC support
-        run: npm install -g npm@latest && npm --version
 
       - name: Compute dev version
         working-directory: ./packages/cherry-markdown
