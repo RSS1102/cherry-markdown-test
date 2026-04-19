@@ -105,10 +105,13 @@ jobs:
           echo "=== package.json name & repository ==="
           jq '{name, version, repository}' package.json
 
-      # OIDC Trusted Publishing: npm 自动检测 OIDC 环境完成认证
-      # 不需要 NODE_AUTH_TOKEN，provenance 自动生成
+      # OIDC Trusted Publishing: 必须清空 NODE_AUTH_TOKEN
+      # setup-node 设置 registry-url 后会注入占位符 (XXXXX-XXXXX-XXXXX-XXXXX)
+      # 该占位符会导致 npm 跳过 OIDC 而使用假 token 认证，结果 E404
       - name: npm publish
         working-directory: ./packages/cherry-markdown
+        env:
+          NODE_AUTH_TOKEN: ""
         run: npm publish --access public --tag dev --provenance
 
       - name: Comment install instructions
