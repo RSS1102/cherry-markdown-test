@@ -1,7 +1,7 @@
 # =============================================================================
 # Reusable Workflow: npm Dev Preview
 #
-# 发布 @cherry-markdown/cherry-markdown-dev 到 npm（带时间戳版本号）
+# 发布 @cherry-markdown-publisher/test 到 npm（带时间戳版本号）
 # 并在 PR 中评论安装指引（alias 方式，无需修改 import 语句）
 # =============================================================================
 
@@ -50,7 +50,7 @@ jobs:
 
           # 输出环境变量供后续步骤使用
           echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "PACKAGE_NAME=@cherry-markdown/cherry-markdown-dev" >> $GITHUB_ENV
+          echo "PACKAGE_NAME=@cherry-markdown-publisher/test" >> $GITHUB_ENV
           echo "COMMIT_MESSAGE=$(git log --oneline -1)" >> $GITHUB_ENV
 
       # 先更新版本号（保持原始 name），确保构建产物内嵌新版本

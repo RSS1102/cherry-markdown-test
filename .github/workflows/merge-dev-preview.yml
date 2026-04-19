@@ -3,7 +3,7 @@
 #
 # 触发时机: PR 合并 (closed + merged) 到 dev 分支，且变更涉及 packages/cherry-markdown
 # 功能:
-#   npm-dev-preview: 发布 @cherry-markdown/cherry-markdown-dev 到 npm（带时间戳版本号），PR 评论安装指引
+#   npm-dev-preview: 发布 @cherry-markdown-publisher/test 到 npm（带时间戳版本号），PR 评论安装指引
 # 使用 pull_request_target 安全访问 secrets（BOT_TOKEN）
 # 并发控制: 不取消旧运行（合并事件只应执行一次）
 # =============================================================================
