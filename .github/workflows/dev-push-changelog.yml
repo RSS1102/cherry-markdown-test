@@ -1,19 +1,12 @@
-# =============================================================================
-# Dev Push Changelog — 推送到 dev 后自动创建分支并更新 CHANGELOG.md
-#
-# 触发时机: push 到 dev 分支
-# 功能:
-#   1. 生成分支名 (changelog/YYYYMMDD-HHmmss)
-#   2. 覆写 packages/cherry-markdown/CHANGELOG.md 为当前时间（精确到秒）
-#   3. 提交并推送新分支，创建 PR 合并回 dev
-# =============================================================================
+# Dev Push Changelog
+# push 到 dev → 创建 changelog 分支 → 更新 CHANGELOG.md → 提 PR 回 dev
+# 跳过 merge commit 和 bot 提交，避免 PR 合并时重复触发
 
 name: 'Dev Push Changelog'
 
 on:
   push:
-    branches:
-      - dev
+    branches: [dev]
 
 permissions:
   contents: write
@@ -25,63 +18,54 @@ concurrency:
 
 jobs:
   update-changelog:
-    # 跳过 merge commit（PR 合并）和 bot 提交，只在普通 push 时触发
     if: |
       !startsWith(github.event.head_commit.message, 'Merge pull request') &&
       github.event.head_commit.author.username != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           ref: dev
 
-      - name: Generate branch name and update CHANGELOG
-        id: update
+      # 1. 生成分支名 & 更新 CHANGELOG → 2. 提交推送新分支
+      - name: Update CHANGELOG and push branch
+        id: push
         run: |
-          BRANCH_NAME="changelog/$(date +'%Y%m%d-%H%M%S')"
-          TIMESTAMP="$(date +'%Y-%m-%d %H:%M:%S %Z')"
+          BRANCH="changelog/$(date +'%Y%m%d-%H%M%S')"
+          TS="$(date +'%Y-%m-%d %H:%M:%S %Z')"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "ts=${TS}" >> "$GITHUB_OUTPUT"
 
-          echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
-          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
-
-          # 覆写 CHANGELOG.md
-          cat > packages/cherry-markdown/CHANGELOG.md << EOF
+          cat > packages/cherry-markdown/CHANGELOG.md <<EOF
           # Changelog
 
-          > Auto-generated at ${TIMESTAMP}
+          > Auto-generated at ${TS}
 
-          Last updated: ${TIMESTAMP}
+          Last updated: ${TS}
           EOF
-
-          # 去掉 heredoc 缩进
           sed -i 's/^          //' packages/cherry-markdown/CHANGELOG.md
 
-      - name: Commit and push
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b ${{ steps.update.outputs.branch }}
+          git checkout -b "$BRANCH"
           git add packages/cherry-markdown/CHANGELOG.md
-          git commit -m "chore: update \`CHANGELOG.md\` to ${{ steps.update.outputs.timestamp }}"
-          git push origin ${{ steps.update.outputs.branch }}
+          git commit -m "chore: update \`CHANGELOG.md\` to ${TS}"
+          git push origin "$BRANCH"
 
-      - name: Create Pull Request
+      # 3. 创建 PR 合并回 dev
+      - name: Create PR
         uses: actions/github-script@v7
         with:
           script: |
+            const branch = '${{ steps.push.outputs.branch }}';
+            const ts = '${{ steps.push.outputs.ts }}';
             const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `chore: update \`CHANGELOG.md\` to ${{ steps.update.outputs.timestamp }}`,
-              head: '${{ steps.update.outputs.branch }}',
+              title: `chore: update \`CHANGELOG.md\` to ${ts}`,
+              head: branch,
               base: 'dev',
-              body: [
-                '🤖 Auto-generated changelog update',
-                '',
-                `**Timestamp**: \`${{ steps.update.outputs.timestamp }}\``,
-                `**Branch**: \`${{ steps.update.outputs.branch }}\``,
-              ].join('\n'),
+              body: `🤖 Auto-generated changelog update\n\n**Timestamp**: \`${ts}\`\n**Branch**: \`${branch}\``,
             });
             console.log(`Created PR #${pr.number}: ${pr.html_url}`);
