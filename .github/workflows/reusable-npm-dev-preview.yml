@@ -84,13 +84,21 @@ jobs:
           echo "此版本为临时测试版，禁止在生产环境使用！" >> README.md
           echo "This is a development preview version, do NOT use in production!" >> README.md
 
-      # OIDC Trusted Publishing: 必须清空 NODE_AUTH_TOKEN
-      # setup-node 设置 registry-url 后会注入占位符 (XXXXX-XXXXX-XXXXX-XXXXX)
-      # 该占位符会导致 npm 跳过 OIDC 而使用假 token 认证，结果 E404
+      # OIDC Trusted Publishing 清理:
+      # setup-node 设置 registry-url 后会在 .npmrc 写入 _authToken=${NODE_AUTH_TOKEN}
+      # 占位符会干扰 OIDC，必须删除 _authToken 行让 npm 走纯 OIDC 认证
+      - name: Remove auth token from .npmrc for OIDC
+        run: |
+          echo "=== Before cleanup ==="
+          cat "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" 2>/dev/null || true
+          sed -i '/_authToken/d' "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" 2>/dev/null || true
+          echo "=== After cleanup ==="
+          cat "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" 2>/dev/null || true
+          echo "=== npm version ==="
+          npm --version
+
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        env:
-          NODE_AUTH_TOKEN: ""
         run: npm publish --access public --tag dev --provenance
 
       - name: Comment install instructions
