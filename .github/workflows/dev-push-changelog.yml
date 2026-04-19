@@ -3,7 +3,7 @@
 #
 # 触发时机: push 到 dev 分支
 # 功能:
-#   1. 生成随机分支名 (changelog/YYYYMMDD-随机串)
+#   1. 生成分支名 (changelog/YYYYMMDD-HHmmss)
 #   2. 覆写 packages/cherry-markdown/CHANGELOG.md 为当前时间（精确到秒）
 #   3. 提交并推送新分支，创建 PR 合并回 dev
 # =============================================================================
@@ -25,6 +25,10 @@ concurrency:
 
 jobs:
   update-changelog:
+    # 跳过 merge commit（PR 合并）和 bot 提交，只在普通 push 时触发
+    if: |
+      !startsWith(github.event.head_commit.message, 'Merge pull request') &&
+      github.event.head_commit.author.username != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -36,8 +40,7 @@ jobs:
       - name: Generate branch name and update CHANGELOG
         id: update
         run: |
-          RANDOM_STR=$(head -c 6 /dev/urandom | base64 | tr -dc 'a-z0-9' | head -c 6)
-          BRANCH_NAME="changelog/$(date +'%Y%m%d')-${RANDOM_STR}"
+          BRANCH_NAME="changelog/$(date +'%Y%m%d-%H%M%S')"
           TIMESTAMP="$(date +'%Y-%m-%d %H:%M:%S %Z')"
 
           echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
