@@ -33,11 +33,14 @@ jobs:
         uses: actions/checkout@v6
 
       # OIDC Trusted Publishing 要求 npm >= 11.5.1，Node 24 内置 npm 11.x
+      # 不使用 registry-url 参数，避免 setup-node 注入 _authToken 占位符干扰 OIDC
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          registry-url: https://registry.npmjs.org/
+
+      - name: Configure npm registry for OIDC
+        run: npm config set registry https://registry.npmjs.org/
 
       - name: Compute dev version
         working-directory: ./packages/cherry-markdown
@@ -83,19 +86,6 @@ jobs:
           echo "" >> README.md
           echo "此版本为临时测试版，禁止在生产环境使用！" >> README.md
           echo "This is a development preview version, do NOT use in production!" >> README.md
-
-      # OIDC Trusted Publishing 清理:
-      # setup-node 设置 registry-url 后会在 .npmrc 写入 _authToken=${NODE_AUTH_TOKEN}
-      # 占位符会干扰 OIDC，必须删除 _authToken 行让 npm 走纯 OIDC 认证
-      - name: Remove auth token from .npmrc for OIDC
-        run: |
-          echo "=== Before cleanup ==="
-          cat "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" 2>/dev/null || true
-          sed -i '/_authToken/d' "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" 2>/dev/null || true
-          echo "=== After cleanup ==="
-          cat "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}" 2>/dev/null || true
-          echo "=== npm version ==="
-          npm --version
 
       - name: npm publish
         working-directory: ./packages/cherry-markdown
