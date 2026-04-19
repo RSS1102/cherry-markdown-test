@@ -33,15 +33,13 @@ jobs:
         uses: actions/checkout@v6
 
       # 弃用 setup-node（会注入 NODE_AUTH_TOKEN 干扰 OIDC）
-      # 直接用 runner 自带的 nvm 安装 Node 22，手动写 .npmrc
-      - name: Setup Node & npm for OIDC
+      # 用 runner 自带 nvm 安装 Node 24（自带 npm 11.x，满足 OIDC ≥ 11.5.1 要求）
+      # 不写 .npmrc：npm 默认 registry 即 npmjs.org，环境越干净 OIDC 越顺畅
+      - name: Setup Node for OIDC
         run: |
           . "$HOME/.nvm/nvm.sh"
-          nvm install 22 && nvm use 22
+          nvm install 24 && nvm use 24
           echo "$NVM_BIN" >> "$GITHUB_PATH"
-          npm install -g npm@latest
-          # OIDC 只需 registry 配置，不要任何 _authToken
-          echo "registry=https://registry.npmjs.org/" > ~/.npmrc
           echo "Node: $(node -v), npm: $(npm -v)"
 
       - name: Compute dev version
