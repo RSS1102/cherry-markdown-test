@@ -84,6 +84,27 @@ jobs:
           echo "此版本为临时测试版，禁止在生产环境使用！" >> README.md
           echo "This is a development preview version, do NOT use in production!" >> README.md
 
+      # 调试信息：确认 npm 版本和 .npmrc 配置
+      - name: Debug OIDC environment
+        working-directory: ./packages/cherry-markdown
+        run: |
+          echo "=== npm version ==="
+          npm --version
+          echo "=== node version ==="
+          node --version
+          echo "=== .npmrc (project) ==="
+          cat .npmrc 2>/dev/null || echo "no project .npmrc"
+          echo "=== .npmrc (home) ==="
+          cat ~/.npmrc 2>/dev/null || echo "no home .npmrc"
+          echo "=== .npmrc (global) ==="
+          npm config get globalconfig && cat "$(npm config get globalconfig)" 2>/dev/null || echo "no global .npmrc"
+          echo "=== NODE_AUTH_TOKEN set? ==="
+          if [ -z "${NODE_AUTH_TOKEN+x}" ]; then echo "NOT SET"; elif [ -z "$NODE_AUTH_TOKEN" ]; then echo "SET BUT EMPTY"; else echo "SET (length=${#NODE_AUTH_TOKEN})"; fi
+          echo "=== npm config list ==="
+          npm config list
+          echo "=== package.json name & repository ==="
+          jq '{name, version, repository}' package.json
+
       # OIDC Trusted Publishing: npm 自动检测 OIDC 环境完成认证
       # 不需要 NODE_AUTH_TOKEN，provenance 自动生成
       - name: npm publish

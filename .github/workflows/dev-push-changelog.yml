@@ -1,0 +1,84 @@
+# =============================================================================
+# Dev Push Changelog — 推送到 dev 后自动创建分支并更新 CHANGELOG.md
+#
+# 触发时机: push 到 dev 分支
+# 功能:
+#   1. 生成随机分支名 (changelog/YYYYMMDD-随机串)
+#   2. 覆写 packages/cherry-markdown/CHANGELOG.md 为当前时间（精确到秒）
+#   3. 提交并推送新分支，创建 PR 合并回 dev
+# =============================================================================
+
+name: 'Dev Push Changelog'
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: dev
+
+      - name: Generate branch name and update CHANGELOG
+        id: update
+        run: |
+          RANDOM_STR=$(head -c 6 /dev/urandom | base64 | tr -dc 'a-z0-9' | head -c 6)
+          BRANCH_NAME="changelog/$(date +'%Y%m%d')-${RANDOM_STR}"
+          TIMESTAMP="$(date +'%Y-%m-%d %H:%M:%S %Z')"
+
+          echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+
+          # 覆写 CHANGELOG.md
+          cat > packages/cherry-markdown/CHANGELOG.md << EOF
+          # Changelog
+
+          > Auto-generated at ${TIMESTAMP}
+
+          Last updated: ${TIMESTAMP}
+          EOF
+
+          # 去掉 heredoc 缩进
+          sed -i 's/^          //' packages/cherry-markdown/CHANGELOG.md
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b ${{ steps.update.outputs.branch }}
+          git add packages/cherry-markdown/CHANGELOG.md
+          git commit -m "chore: update \`CHANGELOG.md\` to ${{ steps.update.outputs.timestamp }}"
+          git push origin ${{ steps.update.outputs.branch }}
+
+      - name: Create Pull Request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `chore: update \`CHANGELOG.md\` to ${{ steps.update.outputs.timestamp }}`,
+              head: '${{ steps.update.outputs.branch }}',
+              base: 'dev',
+              body: [
+                '🤖 Auto-generated changelog update',
+                '',
+                `**Timestamp**: \`${{ steps.update.outputs.timestamp }}\``,
+                `**Branch**: \`${{ steps.update.outputs.branch }}\``,
+              ].join('\n'),
+            });
+            console.log(`Created PR #${pr.number}: ${pr.html_url}`);
