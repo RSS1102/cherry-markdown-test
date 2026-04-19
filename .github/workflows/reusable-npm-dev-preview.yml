@@ -32,17 +32,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # 不使用 actions/setup-node，因为它的 registry-url 会注入 _authToken 占位符
-      # 即使不传 registry-url，setup-node 也可能设置 NODE_AUTH_TOKEN
-      # 直接用 runner 自带的 nvm 安装 Node 24（内置 npm >= 11.5.1，满足 OIDC 要求）
-      - name: Setup Node.js via nvm
+      # 弃用 setup-node（会注入 NODE_AUTH_TOKEN 干扰 OIDC）
+      # 直接用 runner 自带的 nvm 安装 Node 22，手动写 .npmrc
+      - name: Setup Node & npm for OIDC
         run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          nvm install 24
-          nvm use 24
-          echo "$NVM_DIR/versions/node/$(nvm version)/bin" >> $GITHUB_PATH
-          echo "Node: $(node --version), npm: $(npm --version)"
+          . "$HOME/.nvm/nvm.sh"
+          nvm install 22 && nvm use 22
+          echo "$NVM_BIN" >> "$GITHUB_PATH"
+          npm install -g npm@latest
+          # OIDC 只需 registry 配置，不要任何 _authToken
+          echo "registry=https://registry.npmjs.org/" > ~/.npmrc
+          echo "Node: $(node -v), npm: $(npm -v)"
 
       - name: Compute dev version
         working-directory: ./packages/cherry-markdown
@@ -91,7 +91,7 @@ jobs:
 
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        run: npm publish --registry https://registry.npmjs.org/ --access public --tag dev --provenance
+        run: npm publish --access public --tag dev --provenance
 
       - name: Comment install instructions
         if: success()
