@@ -32,15 +32,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # 弃用 setup-node（会注入 NODE_AUTH_TOKEN 干扰 OIDC）
-      # 用 runner 自带 nvm 安装 Node 24（自带 npm 11.x，满足 OIDC ≥ 11.5.1 要求）
-      # 不写 .npmrc：npm 默认 registry 即 npmjs.org，环境越干净 OIDC 越顺畅
-      - name: Setup Node for OIDC
+      # 使用 setup-node 安装 Node 24（自带 npm 11.x，满足 OIDC provenance ≥ 11.5.1 要求）
+      # 故意不写 registry-url：避免生成 .npmrc 中的 _authToken，干扰 OIDC 换取短期 token
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Show versions
         run: |
-          . "$HOME/.nvm/nvm.sh"
-          nvm install 24 && nvm use 24
-          echo "$NVM_BIN" >> "$GITHUB_PATH"
-          echo "Node: $(node -v), npm: $(npm -v)"
+          echo "Node: $(node -v)"
+          echo "npm:  $(npm -v)"
 
       - name: Compute dev version
         working-directory: ./packages/cherry-markdown
