@@ -89,6 +89,26 @@ jobs:
           echo "此版本为临时测试版，禁止在生产环境使用！" >> README.md
           echo "This is a development preview version, do NOT use in production!" >> README.md
 
+      # 诊断：确认 OIDC 环境就绪、npm 版本、是否残留 .npmrc 干扰
+      - name: Debug OIDC environment
+        working-directory: ./packages/cherry-markdown
+        run: |
+          echo "=== versions ==="
+          echo "Node: $(node -v)"
+          echo "npm:  $(npm -v)"
+          echo ""
+          echo "=== OIDC env (should both be 'set') ==="
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL=${ACTIONS_ID_TOKEN_REQUEST_URL:+set}"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN=${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+set}"
+          echo ""
+          echo "=== .npmrc files (should be empty / no _authToken) ==="
+          echo "--- ~/.npmrc ---"; cat ~/.npmrc 2>/dev/null || echo "(none)"
+          echo "--- ./.npmrc ---"; cat ./.npmrc 2>/dev/null || echo "(none)"
+          echo "--- repo root .npmrc ---"; cat "$GITHUB_WORKSPACE/.npmrc" 2>/dev/null || echo "(none)"
+          echo ""
+          echo "=== npm config (effective) ==="
+          npm config list
+
       - name: npm publish
         working-directory: ./packages/cherry-markdown
         run: npm publish --access public --tag dev --provenance
