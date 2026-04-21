@@ -32,12 +32,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # setup-node 不设置 registry-url，避免其在 .npmrc 中注入 _authToken 占位符
-      # 和 NPM_CONFIG_USERCONFIG 环境变量，这些会阻止 npm OIDC Trusted Publisher 认证
+      # setup-node 设置 registry-url：
+      # 这是 npm OIDC Trusted Publisher 的标准用法
+      # 参考：https://docs.npmjs.com/trusted-publishers
       - name: Setup Node 24
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Show versions
         run: |
@@ -73,14 +75,19 @@ jobs:
       - name: Install and build
         run: yarn install && yarn build
 
-      # 构建完成后再改包名、写 README，为 npm publish 做准备
+      # 构建完成后再改包名、写 README、注入 publishConfig，为 npm publish 做准备
+      # publishConfig 中的 provenance: true 是 OIDC Trusted Publisher 认证的关键！
+      # 参考：https://github.com/npm/cli/issues/8730
       - name: Prepare dev package for publish
         working-directory: ./packages/cherry-markdown
         run: |
           tmp=$(mktemp) && jq \
             --arg name "$PACKAGE_NAME" \
-            '.name = $name | del(.scripts.publish?)' \
+            '.name = $name | del(.scripts.publish?) | .publishConfig = {"registry":"https://registry.npmjs.org","access":"public","provenance":true}' \
             package.json > "$tmp" && mv "$tmp" package.json
+
+          echo "--- package.json (name + publishConfig) ---"
+          jq '{name, version, publishConfig}' package.json
 
           echo "**⚠️ 开发预览警告 / Development Preview Warning**" > README.md
           echo "" >> README.md
@@ -106,40 +113,16 @@ jobs:
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm" | jq -r .value)
           echo "$OIDC_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq '{job_workflow_ref, repository, ref, workflow_ref}' || echo "(failed to decode)"
           echo ""
-          echo "=== .npmrc (effective) ==="
-          cat ~/.npmrc 2>/dev/null || echo "(none)"
-          echo ""
           echo "=== npm config ==="
           npm config list --no-workspaces
 
-      # 手动写干净的 .npmrc：只含 registry，不含 _authToken
-      # 确保 npm 找不到任何 _authToken，从而 fallback 到 OIDC Trusted Publisher 认证
-      - name: Prepare .npmrc for OIDC publish
-        run: |
-          # 清除 setup-node 可能注入的环境变量
-          echo "NPM_CONFIG_USERCONFIG=" >> $GITHUB_ENV
-          echo "NODE_AUTH_TOKEN=" >> $GITHUB_ENV
-
-          # 删除所有可能的 .npmrc 文件
-          rm -f /home/runner/work/_temp/.npmrc
-          rm -f ~/.npmrc
-          rm -f .npmrc
-
-          # 写入只含 registry 的干净 .npmrc
-          echo "registry=https://registry.npmjs.org/" > ~/.npmrc
-
-          echo "--- ~/.npmrc ---"
-          cat ~/.npmrc
-          echo "--- npm config ---"
-          npm config list --no-workspaces
-
       # npm publish：OIDC Trusted Publisher 认证
-      # --provenance：触发 npm 通过 OIDC 进行认证并附带来源证明
+      # provenance 已通过 publishConfig 启用，无需 --provenance 参数
       # --tag latest：预发布版本必须显式指定 tag（npm 11 要求）
       # --no-workspaces：避免 workspace 项目中 ENOWORKSPACES 错误
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        run: npm publish --access public --tag latest --provenance --no-workspaces
+        run: npm publish --tag latest --no-workspaces
 
       - name: Comment install instructions
         if: success()
