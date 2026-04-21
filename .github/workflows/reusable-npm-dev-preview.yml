@@ -41,14 +41,17 @@ jobs:
           echo "PACKAGE_NAME=@cherry-markdown-publisher/test" >> $GITHUB_ENV
           echo "COMMIT_MESSAGE=$(git log --oneline -1)" >> $GITHUB_ENV
 
+      # 先改 version（保持原始 name），确保构建产物内嵌新版本
       - name: Update version
         working-directory: ./packages/cherry-markdown
         run: |
           tmp=$(mktemp) && jq --arg v "$PACKAGE_VERSION" '.version = $v' package.json > "$tmp" && mv "$tmp" package.json
 
+      # 在原始 name 下 install & build，workspace 依赖原始包名
       - name: Install and build
         run: yarn install && yarn build
 
+      # build 完成后改包名、注入 publishConfig、写 README
       - name: Prepare package for publish
         working-directory: ./packages/cherry-markdown
         run: |
@@ -57,19 +60,15 @@ jobs:
             '.name = $name | del(.scripts.publish?) | .publishConfig = {"registry":"https://registry.npmjs.org","access":"public","provenance":true}' \
             package.json > "$tmp" && mv "$tmp" package.json
 
-          cat > README.md <<EOF
-          **⚠️ 开发预览警告 / Development Preview Warning**
-
-          变更 / Changes: $COMMIT_MESSAGE
-
-          此版本为临时测试版，禁止在生产环境使用！
-          This is a development preview version, do NOT use in production!
+          cat > README.md <<'EOF'
+          **⚠️ Development Preview Warning**
+          This is a dev preview version, do NOT use in production!
           EOF
           sed -i 's/^          //' README.md
 
       - name: Publish to npm
         working-directory: ./packages/cherry-markdown
-        run: npm publish --access public --provenance --tag latest --no-workspaces
+        run: NODE_AUTH_TOKEN="" npm publish --access public --provenance --tag latest --no-workspaces
 
       - name: Comment install instructions
         if: success()
@@ -81,14 +80,13 @@ jobs:
           script: |
             const name = process.env.PACKAGE_NAME;
             const version = process.env.PACKAGE_VERSION;
-
             const body = [
               `📦 **cherry-markdown dev published** — \`${name}@${version}\``,
               '',
               '⚠️ **注意**: 此版本为开发预览版，禁止在生产环境使用！',
-              '> 通过 alias 安装后，代码中仍然可以使用 `cherry-markdown` 包名，无需修改 import 语句',
+              '> alias 安装后，代码中仍可使用 `cherry-markdown` 包名',
               '',
-              `**[查看 NPM](https://www.npmjs.com/package/${name}/v/${version})**`,
+              `**[NPM](https://www.npmjs.com/package/${name}/v/${version})**`,
               '',
               '```bash',
               `pnpm add cherry-markdown@npm:${name}@${version}`,
@@ -100,12 +98,11 @@ jobs:
               `npm i cherry-markdown@npm:${name}@${version}`,
               '```',
               '',
-              '**peer dependency 覆盖方式：**',
+              '**overrides 覆盖方式：**',
               `npm: \`"overrides": { "cherry-markdown": "npm:${name}@${version}" }\``,
               `yarn: \`"resolutions": { "cherry-markdown": "npm:${name}@${version}" }\``,
               `pnpm: \`"pnpm": { "overrides": { "cherry-markdown": "npm:${name}@${version}" } }\``,
             ].join('\n');
-
             github.rest.issues.createComment({
               issue_number: ${{ inputs.pr_number }},
               owner: context.repo.owner,
