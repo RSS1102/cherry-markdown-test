@@ -9,6 +9,12 @@ on:
     paths:
       - 'packages/cherry-markdown/**'
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
