@@ -116,13 +116,19 @@ jobs:
           echo "=== npm config ==="
           npm config list --no-workspaces
 
+      # 清除 setup-node 注入的 _authToken，让 npm 走纯 OIDC Trusted Publisher 认证
+      # 参考：https://github.com/actions/setup-node/issues/1440
+      - name: Remove _authToken for OIDC
+        run: npm config delete //registry.npmjs.org/:_authToken --no-workspaces
+
       # npm publish：OIDC Trusted Publisher 认证
-      # setup-node@v6 + registry-url 会配置 .npmrc，npm 自动通过 OIDC 认证
       # --provenance：附带来源证明
       # --tag latest：预发布版本必须显式指定 tag（npm 11 要求）
       # --no-workspaces：避免 workspace 项目中 ENOWORKSPACES 错误
       - name: npm publish
         working-directory: ./packages/cherry-markdown
+        env:
+          NODE_AUTH_TOKEN: ''
         run: npm publish --access public --provenance --tag latest --no-workspaces
 
       - name: Comment install instructions
