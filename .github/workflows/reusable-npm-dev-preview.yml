@@ -117,13 +117,13 @@ jobs:
           npm config list --no-workspaces
 
       # npm publish：OIDC Trusted Publisher 认证
-      # setup-node 注入的 _authToken 会触发 npm 走 OIDC 流程
+      # NODE_AUTH_TOKEN="" 清空 setup-node 注入的默认 token
       # --provenance：附带来源证明
       # --tag latest：预发布版本必须显式指定 tag（npm 11 要求）
       # --no-workspaces：避免 workspace 项目中 ENOWORKSPACES 错误
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        run: npm publish --access public --provenance --tag latest --no-workspaces
+        run: NODE_AUTH_TOKEN="" npm publish --access public --provenance --tag latest --no-workspaces
 
       - name: Comment install instructions
         if: success()
