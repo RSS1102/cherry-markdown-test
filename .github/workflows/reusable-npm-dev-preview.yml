@@ -107,11 +107,11 @@ jobs:
           echo "--- repo root .npmrc ---"; cat "$GITHUB_WORKSPACE/.npmrc" 2>/dev/null || echo "(none)"
           echo ""
           echo "=== npm config (effective) ==="
-          npm config list
+          npm config list --no-workspaces
 
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        run: npm publish --access public
+        run: npm publish --access public --no-workspaces
 
       - name: Comment install instructions
         if: success()
