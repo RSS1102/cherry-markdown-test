@@ -1,12 +1,4 @@
-# =============================================================================
-# Merge Dev Preview — 合并到 dev 后自动发布开发预览版
-#
-# 触发时机: PR 合并 (closed + merged) 到 dev 分支，且变更涉及 packages/cherry-markdown
-# 功能:
-#   npm-dev-preview: 发布 @cherry-markdown-publisher/test 到 npm（带时间戳版本号），PR 评论安装指引
-# 使用 pull_request（而非 pull_request_target），确保 OIDC token 的 claims 正确匹配
-# 并发控制: 不取消旧运行（合并事件只应执行一次）
-# =============================================================================
+# Merge Dev Preview — PR 合并到 dev 后自动发布开发预览版
 
 name: 'Merge Dev Preview'
 
@@ -28,26 +20,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  detect-changes:
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      cherry-markdown: ${{ steps.filter.outputs.cherry-markdown }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Detect changed paths
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            cherry-markdown:
-              - 'packages/cherry-markdown/**'
-
   npm-dev-preview:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.cherry-markdown == 'true'
+    if: github.event.pull_request.merged == true
     uses: ./.github/workflows/reusable-npm-dev-preview.yml
     with:
       pr_number: ${{ github.event.pull_request.number }}

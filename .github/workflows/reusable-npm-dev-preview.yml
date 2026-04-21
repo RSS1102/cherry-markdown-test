@@ -1,9 +1,6 @@
-# =============================================================================
 # Reusable Workflow: npm Dev Preview
-#
 # 发布 @cherry-markdown-publisher/test 到 npm（带时间戳版本号）
-# 并在 PR 中评论安装指引（alias 方式，无需修改 import 语句）
-# =============================================================================
+# 并在 PR 中评论安装指引
 
 name: 'Reusable: npm Dev Preview'
 
@@ -14,10 +11,6 @@ on:
         required: true
         type: number
 
-# reusable workflow 必须显式声明 permissions
-# id-token: write —— npm OIDC Trusted Publisher 认证必需
-# contents: read  —— checkout 读取仓库内容
-# pull-requests: write / issues: write —— 在 PR 下评论安装指引
 permissions:
   contents: read
   pull-requests: write
@@ -29,22 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
-      # setup-node@v6 设置 registry-url：npm OIDC Trusted Publisher 的标准用法
-      # v6 移除了 always-auth（v4 生成的 always-auth=false 会导致 npm 警告）
-      # 参考：https://docs.npmjs.com/trusted-publishers
-      - name: Setup Node 24
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Show versions
-        run: |
-          echo "Node: $(node -v)"
-          echo "npm:  $(npm -v)"
 
       - name: Compute dev version
         working-directory: ./packages/cherry-markdown
@@ -54,31 +37,19 @@ jobs:
           COMMIT_SHORT_SHA="${COMMIT_SHORT_SHA:0:7}"
           BASE_VERSION=$(jq -r .version package.json)
           VERSION="${BASE_VERSION}-$(date +'%Y%m%d%H%M').${COMMIT_SHORT_SHA}"
-
-          # 输出环境变量供后续步骤使用
           echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
           echo "PACKAGE_NAME=@cherry-markdown-publisher/test" >> $GITHUB_ENV
           echo "COMMIT_MESSAGE=$(git log --oneline -1)" >> $GITHUB_ENV
 
-      # 先更新版本号（保持原始 name），确保构建产物内嵌新版本
-      - name: Update version in package.json
+      - name: Update version
         working-directory: ./packages/cherry-markdown
         run: |
-          tmp=$(mktemp) && jq \
-            --arg version "$PACKAGE_VERSION" \
-            '.version = $version' \
-            package.json > "$tmp" && mv "$tmp" package.json
+          tmp=$(mktemp) && jq --arg v "$PACKAGE_VERSION" '.version = $v' package.json > "$tmp" && mv "$tmp" package.json
 
-      # 在原始 name (cherry-markdown) 下完成 install & build，
-      # 保证根 package.json 的 postinstall / build 脚本能找到 workspace
-      # 此时 version 已是新版本，构建产物内的版本号将正确反映
       - name: Install and build
         run: yarn install && yarn build
 
-      # 构建完成后再改包名、写 README、注入 publishConfig，为 npm publish 做准备
-      # publishConfig 中的 provenance: true 是 OIDC Trusted Publisher 认证的关键！
-      # 参考：https://github.com/npm/cli/issues/8730
-      - name: Prepare dev package for publish
+      - name: Prepare package for publish
         working-directory: ./packages/cherry-markdown
         run: |
           tmp=$(mktemp) && jq \
@@ -86,44 +57,19 @@ jobs:
             '.name = $name | del(.scripts.publish?) | .publishConfig = {"registry":"https://registry.npmjs.org","access":"public","provenance":true}' \
             package.json > "$tmp" && mv "$tmp" package.json
 
-          echo "--- package.json (name + publishConfig) ---"
-          jq '{name, version, publishConfig}' package.json
+          cat > README.md <<EOF
+          **⚠️ 开发预览警告 / Development Preview Warning**
 
-          echo "**⚠️ 开发预览警告 / Development Preview Warning**" > README.md
-          echo "" >> README.md
-          echo "变更 / Changes: $COMMIT_MESSAGE" >> README.md
-          echo "" >> README.md
-          echo "此版本为临时测试版，禁止在生产环境使用！" >> README.md
-          echo "This is a development preview version, do NOT use in production!" >> README.md
+          变更 / Changes: $COMMIT_MESSAGE
 
-      # 诊断：确认 OIDC 环境就绪
-      - name: Debug OIDC environment
+          此版本为临时测试版，禁止在生产环境使用！
+          This is a development preview version, do NOT use in production!
+          EOF
+          sed -i 's/^          //' README.md
+
+      - name: Publish to npm
         working-directory: ./packages/cherry-markdown
-        run: |
-          echo "=== versions ==="
-          echo "Node: $(node -v)"
-          echo "npm:  $(npm -v)"
-          echo ""
-          echo "=== OIDC env (should both be 'set') ==="
-          echo "ACTIONS_ID_TOKEN_REQUEST_URL=${ACTIONS_ID_TOKEN_REQUEST_URL:+set}"
-          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN=${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+set}"
-          echo ""
-          echo "=== OIDC token claims (job_workflow_ref) ==="
-          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm" | jq -r .value)
-          echo "$OIDC_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq '{job_workflow_ref, repository, ref, workflow_ref}' || echo "(failed to decode)"
-          echo ""
-          echo "=== npm config ==="
-          npm config list --no-workspaces
-
-      # npm publish：OIDC Trusted Publisher 认证
-      # NODE_AUTH_TOKEN="" 清空 setup-node 注入的默认 token
-      # --provenance：附带来源证明
-      # --tag latest：预发布版本必须显式指定 tag（npm 11 要求）
-      # --no-workspaces：避免 workspace 项目中 ENOWORKSPACES 错误
-      - name: npm publish
-        working-directory: ./packages/cherry-markdown
-        run: NODE_AUTH_TOKEN="" npm publish --access public --provenance --tag latest --no-workspaces
+        run: npm publish --access public --provenance --tag latest --no-workspaces
 
       - name: Comment install instructions
         if: success()
