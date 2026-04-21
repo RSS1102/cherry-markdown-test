@@ -117,12 +117,15 @@ jobs:
           npm config list --no-workspaces
 
       # npm publish：OIDC Trusted Publisher 认证
-      # provenance 已通过 publishConfig 启用，无需 --provenance 参数
+      # NODE_AUTH_TOKEN="" 内联清空：setup-node 会自动注入默认 NODE_AUTH_TOKEN，
+      # 它会抢在 OIDC 之前被 npm 使用，导致 404。必须在命令前内联清空。
+      # 参考：https://gist.github.com/jaywcjlove/a178278521a6f72c74525d3f1d9c4bf9
+      # 参考：https://github.com/actions/setup-node/issues/1440
       # --tag latest：预发布版本必须显式指定 tag（npm 11 要求）
       # --no-workspaces：避免 workspace 项目中 ENOWORKSPACES 错误
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        run: npm publish --tag latest --no-workspaces
+        run: NODE_AUTH_TOKEN="" npm publish --access public --provenance --tag latest --no-workspaces
 
       - name: Comment install instructions
         if: success()
