@@ -114,6 +114,19 @@ jobs:
           echo "=== npm config ==="
           npm config list --no-workspaces
 
+      # setup-node 会在 /home/runner/work/_temp/.npmrc 中写入 _authToken 占位符，
+      # 该 token 会优先于 OIDC 被 npm 使用，导致认证失败。
+      # 删除 _authToken 行，只保留 registry 配置，让 npm fallback 到 OIDC Trusted Publisher。
+      - name: Remove _authToken from .npmrc (keep registry for OIDC)
+        run: |
+          NPMRC="/home/runner/work/_temp/.npmrc"
+          echo "--- before ---"
+          cat "$NPMRC"
+          sed -i '/_authToken/d' "$NPMRC"
+          sed -i '/always-auth/d' "$NPMRC"
+          echo "--- after ---"
+          cat "$NPMRC"
+
       # npm publish：OIDC Trusted Publisher 认证，无需 NODE_AUTH_TOKEN
       # --tag latest：预发布版本必须显式指定 tag（npm 11 要求）
       # --no-workspaces：避免 workspace 项目中 ENOWORKSPACES 错误
