@@ -32,14 +32,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # setup-node 必须设置 registry-url，npm OIDC 需要它来触发 token 交换
-      # 不需要设置 NODE_AUTH_TOKEN —— npm 11.5.1+ 会自动检测 OIDC 环境并认证
-      # 参考：https://docs.npmjs.com/trusted-publishers
+      # setup-node 不设置 registry-url，避免其在 .npmrc 中注入 _authToken 占位符
+      # 和 NPM_CONFIG_USERCONFIG 环境变量，这些会阻止 npm OIDC Trusted Publisher 认证
       - name: Setup Node 24
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Show versions
         run: |
@@ -114,26 +112,34 @@ jobs:
           echo "=== npm config ==="
           npm config list --no-workspaces
 
-      # setup-node 会在 /home/runner/work/_temp/.npmrc 中写入 _authToken 占位符，
-      # 该 token 会优先于 OIDC 被 npm 使用，导致认证失败。
-      # 删除 _authToken 行，只保留 registry 配置，让 npm fallback 到 OIDC Trusted Publisher。
-      - name: Remove _authToken from .npmrc (keep registry for OIDC)
+      # 手动写干净的 .npmrc：只含 registry，不含 _authToken
+      # 确保 npm 找不到任何 _authToken，从而 fallback 到 OIDC Trusted Publisher 认证
+      - name: Prepare .npmrc for OIDC publish
         run: |
-          NPMRC="/home/runner/work/_temp/.npmrc"
-          echo "--- before ---"
-          cat "$NPMRC"
-          sed -i '/_authToken/d' "$NPMRC"
-          sed -i '/always-auth/d' "$NPMRC"
-          echo "--- after ---"
-          cat "$NPMRC"
+          # 清除 setup-node 可能注入的环境变量
+          echo "NPM_CONFIG_USERCONFIG=" >> $GITHUB_ENV
+          echo "NODE_AUTH_TOKEN=" >> $GITHUB_ENV
 
-      # npm publish：OIDC Trusted Publisher 认证，无需 NODE_AUTH_TOKEN
+          # 删除所有可能的 .npmrc 文件
+          rm -f /home/runner/work/_temp/.npmrc
+          rm -f ~/.npmrc
+          rm -f .npmrc
+
+          # 写入只含 registry 的干净 .npmrc
+          echo "registry=https://registry.npmjs.org/" > ~/.npmrc
+
+          echo "--- ~/.npmrc ---"
+          cat ~/.npmrc
+          echo "--- npm config ---"
+          npm config list --no-workspaces
+
+      # npm publish：OIDC Trusted Publisher 认证
+      # --provenance：触发 npm 通过 OIDC 进行认证并附带来源证明
       # --tag latest：预发布版本必须显式指定 tag（npm 11 要求）
       # --no-workspaces：避免 workspace 项目中 ENOWORKSPACES 错误
-      # 不需要 --provenance：公开仓库发公开包时自动生成 provenance
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        run: npm publish --access public --tag latest --no-workspaces
+        run: npm publish --access public --tag latest --provenance --no-workspaces
 
       - name: Comment install instructions
         if: success()
