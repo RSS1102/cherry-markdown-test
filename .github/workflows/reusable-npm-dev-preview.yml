@@ -33,14 +33,12 @@ jobs:
         uses: actions/checkout@v6
 
       # 使用 setup-node 安装 Node 24（自带 npm 11.x，满足 OIDC provenance ≥ 11.5.1 要求）
-      # registry-url 必须设置：npm 需要知道 registry 地址才能触发 OIDC token 交换
-      # setup-node 会在 .npmrc 写入 registry + NODE_AUTH_TOKEN 占位符，
-      # 但因为我们不设置 NODE_AUTH_TOKEN 环境变量，npm 会 fallback 到 OIDC provenance 认证
+      # 不写 registry-url：避免 setup-node 在 .npmrc 中写入 _authToken 占位符，
+      # 该 _authToken 会导致 npm 跳过 OIDC Trusted Publisher 认证流程
       - name: Setup Node 24
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Show versions
         run: |
@@ -117,8 +115,20 @@ jobs:
           echo "=== npm config (effective) ==="
           npm config list --no-workspaces
 
+      # 清除可能残留的 .npmrc（含 _authToken 会干扰 OIDC），写入只含 registry 的干净配置
+      - name: Prepare clean .npmrc for OIDC publish
+        run: |
+          rm -f /home/runner/work/_temp/.npmrc
+          rm -f ~/.npmrc
+          echo "registry=https://registry.npmjs.org/" > ~/.npmrc
+          unset NPM_CONFIG_USERCONFIG
+          echo "--- final ~/.npmrc ---"
+          cat ~/.npmrc
+
       - name: npm publish
         working-directory: ./packages/cherry-markdown
+        env:
+          NPM_CONFIG_USERCONFIG: ''
         run: npm publish --access public --tag latest --provenance --no-workspaces
 
       - name: Comment install instructions
