@@ -111,7 +111,7 @@ jobs:
 
       - name: npm publish
         working-directory: ./packages/cherry-markdown
-        run: npm publish --access public --no-workspaces
+        run: npm publish --access public --tag latest --no-workspaces
 
       - name: Comment install instructions
         if: success()
