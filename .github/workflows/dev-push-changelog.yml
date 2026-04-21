@@ -55,6 +55,7 @@ jobs:
 
       # 3. 创建 PR 合并回 dev
       - name: Create PR
+        id: create-pr
         uses: actions/github-script@v7
         with:
           script: |
@@ -69,3 +70,31 @@ jobs:
               body: `🤖 Auto-generated changelog update\n\n**Timestamp**: \`${ts}\`\n**Branch**: \`${branch}\``,
             });
             console.log(`Created PR #${pr.number}: ${pr.html_url}`);
+            core.setOutput('pr_number', pr.number);
+
+      # 4. 自动合并 PR 并删除分支
+      - name: Merge PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.create-pr.outputs.pr_number }};
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              merge_method: 'squash',
+            });
+            console.log(`Merged PR #${prNumber}`);
+
+            // 删除远程分支
+            const branch = '${{ steps.push.outputs.branch }}';
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branch}`,
+              });
+              console.log(`Deleted branch ${branch}`);
+            } catch (e) {
+              console.log(`Branch cleanup skipped: ${e.message}`);
+            }
